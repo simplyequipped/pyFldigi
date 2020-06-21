@@ -32,13 +32,15 @@ class ApplicationMonitor(object):
         self.client = xmlrpc.client.ServerProxy('http://{}:{}/'.format(self.hostname, self.port))
         self.process = None
 
-    def start(self, headless=False, wfall_only=False):
+    def start(self, headless=False, wfall_only=False, debug=3):
         '''Start fldigi in the background
 
         :param headless: if True, starts the FLDIGI application in headless mode (POSIX only!  Doesn't work in Windows)
         :type headless: bool
         :param wfall_only: If True, start FLDIGI in 'waterfall-only' mode.  (POSIX only!  Doesn't work in Windows)
         :type wfall_only: bool
+        :param debug: sets the debug level of the FLDIGI application (range of 0-5: quiet, error, warning, info, verbose, debug), defaults to 3
+        :type debug: int
 
         :Example:
 
@@ -59,6 +61,7 @@ class ApplicationMonitor(object):
         else:
             args.extend(['--arq-server-address', self.hostname])
             args.extend(['--arq-server-port', str(self.port)])
+            args.extend(['--debug-level', str(debug)])
             if headless is True:
                 if self.platform == 'win32':
                     raise Exception('cannot run headless with win32.  Headless mode is only supported on Linux.')
@@ -70,7 +73,13 @@ class ApplicationMonitor(object):
                 if wfall_only is True:  # consider this modal with 'headless'
                     args.append('--wfall-only')
             # args.extend(['-title', 'fldigi'])  # Set the title to something predictable.
-        self.process = subprocess.Popen(args)
+            
+        # for minimum output, redirect stderr
+        if debug == 0:
+            devnull = open(os.devnull, 'w')
+            self.process = subprocess.Popen(args, stderr=devnull)
+        else:
+            self.process = subprocess.Popen(args)
         start = time.time()
         while(1):
             try:
@@ -94,17 +103,29 @@ class ApplicationMonitor(object):
         >>> app.stop()
         '''
         bitmask = int('0b{}{}{}'.format(int(save_macros), int(save_log), int(save_options)), 0)
+        error_code = None
+        
+        # attempt to stop fldigi application via xml-rpc
         self.client.fldigi.terminate(bitmask)
-        if self.process is not None:
+         
+        try:
             error_code = self.process.wait(timeout=2)
-            if force is True:
-                if error_code is None:
-                    self.process.terminate()  # attempt to terminate
-                    error_code = self.process.wait(timeout=2)
-                    if error_code is None:
-                        error_code = self.process.kill()
-            self.process = None
-            return error_code
+        except subprocess.TimeoutExpired:
+            pass
+
+        if force is True and error_code is None:
+            self.process.terminate()  # attempt to terminate
+            
+            try:
+                error_code = self.process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                pass
+
+            if error_code is None:
+                error_code = self.process.kill()
+
+        self.process = None
+        return error_code
 
     def kill(self):
         '''Kills fldigi.
@@ -158,9 +179,10 @@ class ApplicationMonitor(object):
         else:
             p = self.process.poll()  # will return None if not yet finished.  Will return the exit code if it has finished.
             if p is None:
-                return False
+                return True
             else:
                 self.returncode = p
+                return False
 
 
 if __name__ == '__main__':

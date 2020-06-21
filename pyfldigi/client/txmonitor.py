@@ -200,9 +200,11 @@ class TxMonitor(threading.Thread):
                     self.transmitting = False
 
             except Exception as e:
-                raise
-                print('TXMONITOR: Exception: {}'.format(e))
-                pass  # Daemon threads might run after python starts shutting down.  Ignore errors.
+                #raise
+                #print('TXMONITOR: Exception: {}'.format(e))
+                #pass  # Daemon threads might run after python starts shutting down.  Ignore errors.
+                break
+
             self.heartbeat = time.time()
             time.sleep(self.interval)
         self.logger.debug('TXMONITOR: Thread stopped.')
