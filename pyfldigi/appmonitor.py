@@ -67,8 +67,7 @@ class ApplicationMonitor(object):
                     raise Exception('cannot run headless with win32.  Headless mode is only supported on Linux.')
                 else:  # Assumes cygwin, linux, and darwin can utilize xvfb to create a fake x server
                     args.insert(0, 'xvfb-run')  # http://manpages.ubuntu.com/manpages/zesty/man1/xvfb-run.1.html
-                    args.append('-display')
-                    args.append(':99')
+                    args.insert(1, '-a')
             else:
                 if wfall_only is True:  # consider this modal with 'headless'
                     args.append('--wfall-only')
